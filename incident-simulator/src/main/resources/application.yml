@@ -1,0 +1,50 @@
+server:
+  port: ${SIMULATOR_PORT:8081}
+
+spring:
+  application:
+    name: incident-simulator
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${SIMULATOR_DB_URL:jdbc:postgresql://localhost:5432/incident_investigator}
+    username: ${POSTGRES_USER:incident}
+    password: ${POSTGRES_PASSWORD:incident}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    # Local profiles keep the default schema. The containerised deployment gives
+    # each application its own schema in the shared PostgreSQL instance.
+    default-schema: ${DB_SCHEMA:public}
+    schemas: ${DB_SCHEMA:public}
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+simulator:
+  traffic:
+    enabled: ${SIMULATOR_TRAFFIC_ENABLED:true}
+    interval-ms: 2000
+    requests-per-tick: 2
+  detection:
+    enabled: true
+    interval-ms: 5000
+    error-rate-threshold: 0.08
+    latency-threshold-ms: 1200
+    heap-threshold: 0.90
+    pool-threshold: 0.95
+  telemetry:
+    sample-interval-ms: 2000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
