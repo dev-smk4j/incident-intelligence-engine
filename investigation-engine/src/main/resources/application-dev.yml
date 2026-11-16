@@ -1,0 +1,8 @@
+# Local profile for running without Docker or PostgreSQL. The simulator must
+# still be reachable; its default base URL is set in application.yml.
+spring:
+  datasource:
+    url: jdbc:h2:mem:engine;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:

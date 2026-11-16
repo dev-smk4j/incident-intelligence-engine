@@ -1,0 +1,44 @@
+server:
+  port: ${ENGINE_PORT:8082}
+
+spring:
+  application:
+    name: investigation-engine
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${ENGINE_DB_URL:jdbc:postgresql://localhost:5432/incident_investigator}
+    username: ${POSTGRES_USER:incident}
+    password: ${POSTGRES_PASSWORD:incident}
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    # Local profiles keep the default schema. The containerised deployment gives
+    # each application its own schema in the shared PostgreSQL instance.
+    default-schema: ${DB_SCHEMA:public}
+    schemas: ${DB_SCHEMA:public}
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+simulator:
+  client:
+    base-url: ${SIMULATOR_BASE_URL:http://localhost:8081}
+
+investigation:
+  max-steps: ${INVESTIGATION_MAX_STEPS:14}
+  max-tool-calls: ${INVESTIGATION_MAX_TOOL_CALLS:12}
+  max-duration-seconds: ${INVESTIGATION_MAX_DURATION_SECONDS:120}
+  tool-timeout-ms: ${INVESTIGATION_TOOL_TIMEOUT_MS:5000}
+  tool-retries: ${INVESTIGATION_TOOL_RETRIES:1}
+  max-consecutive-failures: ${INVESTIGATION_MAX_CONSECUTIVE_FAILURES:3}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
