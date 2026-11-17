@@ -1,0 +1,32 @@
+# Build stage for the incident simulator.
+# Build context must be the repository root:  docker build -f Dockerfile.simulator .
+FROM maven:3.9-eclipse-temurin-21 AS build
+
+WORKDIR /workspace
+
+# Copy only the POMs first so that dependency resolution is cached independently
+# of source changes.
+COPY pom.xml ./
+COPY contracts/pom.xml contracts/pom.xml
+COPY incident-simulator/pom.xml incident-simulator/pom.xml
+COPY investigation-engine/pom.xml investigation-engine/pom.xml
+RUN mvn -B -q -pl incident-simulator -am dependency:go-offline
+
+COPY contracts/src contracts/src
+COPY incident-simulator/src incident-simulator/src
+RUN mvn -B -q -pl incident-simulator -am -DskipTests package
+
+FROM eclipse-temurin:21-jre
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --create-home appuser
+
+WORKDIR /app
+COPY --from=build /workspace/incident-simulator/target/incident-simulator-*.jar /app/application.jar
+
+USER appuser
+EXPOSE 8081
+
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/application.jar"]

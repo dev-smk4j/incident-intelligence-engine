@@ -1,0 +1,88 @@
+# Local, single-host deployment of the two applications and PostgreSQL.
+#
+# Docker is deliberately not required for development: both applications run with
+# the `dev` profile on in-memory H2. This file exists for a realistic, persistent
+# setup and for review of the intended deployment topology.
+#
+#   cp .env.example .env
+#   docker compose up --build
+#
+# The simulator listens on :8081, the engine on :8082.
+#
+# Both applications share one PostgreSQL instance but own separate schemas. In a
+# real deployment each service would own its own database (or at least its own
+# credentials and schema); one instance keeps the demo small while still proving
+# that the Flyway migrations work against PostgreSQL rather than only H2.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-incident_investigator}
+      POSTGRES_USER: ${POSTGRES_USER:-incident}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-incident}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-incident} -d ${POSTGRES_DB:-incident_investigator}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile.simulator
+    environment:
+      SIMULATOR_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-incident_investigator}?currentSchema=simulator
+      POSTGRES_USER: ${POSTGRES_USER:-incident}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-incident}
+      DB_SCHEMA: simulator
+      SIMULATOR_TRAFFIC_ENABLED: "true"
+    ports:
+      - "${SIMULATOR_PORT:-8081}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.engine
+    environment:
+      ENGINE_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-incident_investigator}?currentSchema=engine
+      POSTGRES_USER: ${POSTGRES_USER:-incident}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-incident}
+      DB_SCHEMA: engine
+      SIMULATOR_BASE_URL: http://simulator:8081
+      INVESTIGATION_MAX_STEPS: ${INVESTIGATION_MAX_STEPS:-14}
+      INVESTIGATION_MAX_TOOL_CALLS: ${INVESTIGATION_MAX_TOOL_CALLS:-12}
+      INVESTIGATION_MAX_DURATION_SECONDS: ${INVESTIGATION_MAX_DURATION_SECONDS:-120}
+      INVESTIGATION_TOOL_TIMEOUT_MS: ${INVESTIGATION_TOOL_TIMEOUT_MS:-5000}
+    ports:
+      - "${ENGINE_PORT:-8082}:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      simulator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

@@ -1,0 +1,30 @@
+# Build stage for the investigation engine.
+# Build context must be the repository root:  docker build -f Dockerfile.engine .
+FROM maven:3.9-eclipse-temurin-21 AS build
+
+WORKDIR /workspace
+
+COPY pom.xml ./
+COPY contracts/pom.xml contracts/pom.xml
+COPY incident-simulator/pom.xml incident-simulator/pom.xml
+COPY investigation-engine/pom.xml investigation-engine/pom.xml
+RUN mvn -B -q -pl investigation-engine -am dependency:go-offline
+
+COPY contracts/src contracts/src
+COPY investigation-engine/src investigation-engine/src
+RUN mvn -B -q -pl investigation-engine -am -DskipTests package
+
+FROM eclipse-temurin:21-jre
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --uid 10001 --create-home appuser
+
+WORKDIR /app
+COPY --from=build /workspace/investigation-engine/target/investigation-engine-*.jar /app/application.jar
+
+USER appuser
+EXPOSE 8082
+
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/application.jar"]
